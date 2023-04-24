@@ -596,6 +596,7 @@ void __init early_init_fdt_scan_reserved_mem(void)
 		fdt_get_mem_rsv(initial_boot_params, n, &base, &size);
 		if (!size)
 			break;
+		printk("SHIT dt reserved base %llx size %llx end %llx\n", base, size, base+size);
 		early_init_dt_reserve_memory_arch(base, size, false);
 	}
 
@@ -1290,7 +1291,11 @@ static int __init of_fdt_raw_init(void)
 	of_fdt_raw_attr.size = fdt_totalsize(initial_boot_params);
 	return sysfs_create_bin_file(firmware_kobj, &of_fdt_raw_attr);
 }
+#ifndef CONFIG_VERIFIED_KVM
 late_initcall(of_fdt_raw_init);
+#else
+device_initcall(of_fdt_raw_init);
+#endif
 #endif
 
 #endif /* CONFIG_OF_EARLY_FLATTREE */

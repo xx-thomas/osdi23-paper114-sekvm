@@ -41,6 +41,11 @@
 #include <linux/amba/bus.h>
 #include <linux/fsl/mc.h>
 
+#ifdef CONFIG_VERIFIED_KVM
+#include <asm/hypsec_host.h>
+#include <asm/kvm_mmu.h>
+#endif
+
 #include "arm-smmu.h"
 
 /*
@@ -66,8 +71,7 @@ static int force_stage;
 module_param(force_stage, int, S_IRUGO);
 MODULE_PARM_DESC(force_stage,
 	"Force SMMU mappings to be installed at a particular stage of translation. A value of '1' or '2' forces the corresponding stage. All other values are ignored (i.e. no stage is forced). Note that selecting a specific stage will disable support for nested translation.");
-static bool disable_bypass =
-	IS_ENABLED(CONFIG_ARM_SMMU_DISABLE_BYPASS_BY_DEFAULT);
+static bool disable_bypass;
 module_param(disable_bypass, bool, S_IRUGO);
 MODULE_PARM_DESC(disable_bypass,
 	"Disable bypass streams such that incoming transactions from devices that are not attached to an iommu domain will report an abort back to the device and will not be allowed to pass through the SMMU.");
@@ -491,14 +495,25 @@ static irqreturn_t arm_smmu_global_fault(int irq, void *dev)
 	return IRQ_HANDLED;
 }
 
+#ifdef CONFIG_VERIFIED_KVM
+#define ARM_SMMU_CB_VMID(smmu, cfg) ((u16)(smmu)->cavium_id_base + (cfg)->cbndx + 1)
+#endif
 static void arm_smmu_init_context_bank(struct arm_smmu_domain *smmu_domain,
 				       struct io_pgtable_cfg *pgtbl_cfg)
 {
 	struct arm_smmu_cfg *cfg = &smmu_domain->cfg;
 	struct arm_smmu_cb *cb = &smmu_domain->smmu->cbs[cfg->cbndx];
 	bool stage1 = cfg->cbar != CBAR_TYPE_S2_TRANS;
+#ifdef CONFIG_VERIFIED_KVM
+	struct arm_smmu_device *smmu = smmu_domain->smmu;
+	u32 smmu_num;
+#endif
 
 	cb->cfg = cfg;
+#ifdef CONFIG_VERIFIED_KVM
+	smmu_num = smmu->index;
+	el2_smmu_alloc_pgd(cfg->cbndx, cfg->vmid, smmu_num);
+#endif
 
 	/* TCR */
 	if (stage1) {
@@ -754,7 +769,11 @@ static int arm_smmu_init_domain_context(struct iommu_domain *domain,
 	}
 
 	if (smmu_domain->stage == ARM_SMMU_DOMAIN_S2)
+#ifndef CONFIG_VERIFIED_KVM
 		cfg->vmid = cfg->cbndx + 1;
+#else
+		cfg->vmid = domain->vmid;
+#endif
 	else
 		cfg->asid = cfg->cbndx;
 
@@ -2001,6 +2020,43 @@ static void arm_smmu_bus_init(void)
 #endif
 }
 
+#ifdef CONFIG_VERIFIED_KVM
+static void s2_smmu_probe(struct arm_smmu_device *smmu,
+			  u64 base, u64 size)
+{
+	struct el2_data *el2_data;
+	struct el2_arm_smmu_device el2_smmu;
+	u64 smmu_start, smmu_end;
+
+	el2_data = (void *)kvm_ksym_ref(el2_data_start);
+	if (el2_data->el2_smmu_num > SMMU_NUM)
+		return;
+
+	el2_smmu.phys_base = base;
+	el2_smmu.size = size;
+
+	smmu_start = base;
+	smmu_end = base + size;
+
+	el2_smmu.pgshift = smmu->pgshift;
+	el2_smmu.features = smmu->features;
+
+	el2_smmu.num_context_banks = smmu->num_context_banks;
+	el2_smmu.num_s2_context_banks = smmu->num_s2_context_banks;
+
+	el2_smmu.va_size = smmu->va_size;
+	el2_smmu.ipa_size = smmu->ipa_size;
+	el2_smmu.pa_size = smmu->pa_size;
+
+	el2_smmu.num_global_irqs = smmu->num_global_irqs;
+	smmu->index = el2_data->el2_smmu_num;
+	el2_smmu.index = smmu->index;
+
+	el2_data->smmus[el2_data->el2_smmu_num] = el2_smmu;
+	el2_data->el2_smmu_num++;
+}
+#endif
+
 static int arm_smmu_device_probe(struct platform_device *pdev)
 {
 	struct resource *res;
@@ -2008,6 +2064,9 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 	struct arm_smmu_device *smmu;
 	struct device *dev = &pdev->dev;
 	int num_irqs, i, err;
+#ifdef CONFIG_VERIFIED_KVM
+	u64 phys_smmu_base, smmu_size;
+#endif
 
 	smmu = devm_kzalloc(dev, sizeof(*smmu), GFP_KERNEL);
 	if (!smmu) {
@@ -2038,6 +2097,10 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 	 * stash that temporarily until we know PAGESIZE to validate it with.
 	 */
 	smmu->numpage = resource_size(res);
+#ifdef CONFIG_VERIFIED_KVM
+	phys_smmu_base = res->start;
+	smmu_size = resource_size(res);
+#endif
 
 	num_irqs = 0;
 	while ((res = platform_get_resource(pdev, IORESOURCE_IRQ, num_irqs))) {
@@ -2128,7 +2191,10 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, smmu);
 	arm_smmu_device_reset(smmu);
 	arm_smmu_test_smr_masks(smmu);
-
+#ifdef CONFIG_VERIFIED_KVM
+	smmu->phys_base = phys_smmu_base;
+	s2_smmu_probe(smmu, phys_smmu_base, smmu_size);
+#endif
 	/*
 	 * We want to avoid touching dev->power.lock in fastpaths unless
 	 * it's really going to do something useful - pm_runtime_enabled()

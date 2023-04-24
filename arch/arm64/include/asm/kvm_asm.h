@@ -66,7 +66,12 @@ extern void __kvm_timer_set_cntvoff(u32 cntvoff_low, u32 cntvoff_high);
 
 extern int kvm_vcpu_run_vhe(struct kvm_vcpu *vcpu);
 
+#ifndef CONFIG_VERIFIED_KVM
 extern int __kvm_vcpu_run_nvhe(struct kvm_vcpu *vcpu);
+#else
+struct shadow_vcpu_context;
+extern int __kvm_vcpu_run_nvhe(u32 vmid, u32 vcpu_id);
+#endif
 
 extern u64 __vgic_v3_get_ich_vtr_el2(void);
 extern u64 __vgic_v3_read_vmcr(void);
@@ -110,7 +115,9 @@ extern u32 __kvm_get_mdcr_el2(void);
 .macro get_vcpu_ptr vcpu, ctxt
 	get_host_ctxt \ctxt, \vcpu
 	ldr	\vcpu, [\ctxt, #HOST_CONTEXT_VCPU]
+#ifndef CONFIG_VERIFIED_KVM
 	kern_hyp_va	\vcpu
+#endif
 .endm
 
 #endif

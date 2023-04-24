@@ -525,11 +525,13 @@ re_probe:
 	dev->driver = drv;
 
 	/* If using pinctrl, bind pins now before probing */
+	printk("pinctrl() %s\n", dev_name(dev));
 	ret = pinctrl_bind_pins(dev);
 	if (ret)
 		goto pinctrl_bind_failed;
 
 	if (dev->bus->dma_configure) {
+		printk("configure() %s\n", dev_name(dev));
 		ret = dev->bus->dma_configure(dev);
 		if (ret)
 			goto probe_failed;
@@ -542,16 +544,19 @@ re_probe:
 	}
 
 	if (dev->pm_domain && dev->pm_domain->activate) {
+		printk("activate() %s\n", dev_name(dev));
 		ret = dev->pm_domain->activate(dev);
 		if (ret)
 			goto probe_failed;
 	}
 
 	if (dev->bus->probe) {
+		printk("dev->bus->probe() %s\n", dev_name(dev));
 		ret = dev->bus->probe(dev);
 		if (ret)
 			goto probe_failed;
 	} else if (drv->probe) {
+		printk("drv->probe() %s. VA:%llx PA:%llx\n", dev_name(dev), drv->probe, virt_to_phys(drv->probe));
 		ret = drv->probe(dev);
 		if (ret)
 			goto probe_failed;

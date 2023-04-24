@@ -144,6 +144,12 @@ static inline bool kvm_page_empty(void *ptr)
 
 #include <asm/stage2_pgtable.h>
 
+#ifdef CONFIG_VERIFIED_KVM
+int create_hypsec_io_mappings(phys_addr_t phys_addr, size_t size,
+			      unsigned long *haddr);
+int el2_create_hyp_mappings(void *from, void *to, pgprot_t prot);
+#endif
+
 int create_hyp_mappings(void *from, void *to, pgprot_t prot);
 int create_hyp_io_mappings(phys_addr_t phys_addr, size_t size,
 			   void __iomem **kaddr,
@@ -151,6 +157,11 @@ int create_hyp_io_mappings(phys_addr_t phys_addr, size_t size,
 int create_hyp_exec_mappings(phys_addr_t phys_addr, size_t size,
 			     void **haddr);
 void free_hyp_pgds(void);
+#ifdef CONFIG_VERIFIED_KVM
+int create_hypsec_io_mappings(phys_addr_t phys_addr, size_t size,
+			      unsigned long *haddr);
+int el2_create_hyp_mappings(void *from, void *to, pgprot_t prot);
+#endif
 
 void stage2_unmap_vm(struct kvm *kvm);
 int kvm_alloc_stage2_pgd(struct kvm *kvm);
@@ -309,6 +320,7 @@ static inline bool vcpu_has_cache_enabled(struct kvm_vcpu *vcpu)
 
 static inline void __clean_dcache_guest_page(kvm_pfn_t pfn, unsigned long size)
 {
+#ifndef CONFIG_VERIFIED_KVM
 	void *va = page_address(pfn_to_page(pfn));
 
 	/*
@@ -321,6 +333,7 @@ static inline void __clean_dcache_guest_page(kvm_pfn_t pfn, unsigned long size)
 		return;
 
 	kvm_flush_dcache_to_poc(va, size);
+#endif
 }
 
 static inline void __invalidate_icache_guest_page(kvm_pfn_t pfn,
@@ -340,26 +353,32 @@ static inline void __invalidate_icache_guest_page(kvm_pfn_t pfn,
 
 static inline void __kvm_flush_dcache_pte(pte_t pte)
 {
+#ifndef CONFIG_VERIFIED_KVM
 	if (!cpus_have_const_cap(ARM64_HAS_STAGE2_FWB)) {
 		struct page *page = pte_page(pte);
 		kvm_flush_dcache_to_poc(page_address(page), PAGE_SIZE);
 	}
+#endif
 }
 
 static inline void __kvm_flush_dcache_pmd(pmd_t pmd)
 {
+#ifndef CONFIG_VERIFIED_KVM
 	if (!cpus_have_const_cap(ARM64_HAS_STAGE2_FWB)) {
 		struct page *page = pmd_page(pmd);
 		kvm_flush_dcache_to_poc(page_address(page), PMD_SIZE);
 	}
+#endif
 }
 
 static inline void __kvm_flush_dcache_pud(pud_t pud)
 {
+#ifndef CONFIG_VERIFIED_KVM
 	if (!cpus_have_const_cap(ARM64_HAS_STAGE2_FWB)) {
 		struct page *page = pud_page(pud);
 		kvm_flush_dcache_to_poc(page_address(page), PUD_SIZE);
 	}
+#endif
 }
 
 #define kvm_virt_to_phys(x)		__pa_symbol(x)
@@ -589,6 +608,7 @@ static inline u64 vttbr_baddr_mask(u32 ipa_shift, u32 levels)
 
 static inline u64 kvm_vttbr_baddr_mask(struct kvm *kvm)
 {
+	printk("%s shift %d levels %d\n", __func__, (int)kvm_phys_shift(kvm), (int)kvm_stage2_levels(kvm));
 	return vttbr_baddr_mask(kvm_phys_shift(kvm), kvm_stage2_levels(kvm));
 }
 

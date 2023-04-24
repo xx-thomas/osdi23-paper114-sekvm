@@ -501,6 +501,10 @@ struct kvm {
 	struct srcu_struct srcu;
 	struct srcu_struct irq_srcu;
 	pid_t userspace_pid;
+#ifdef CONFIG_VERIFIED_KVM
+	bool verified;
+	spinlock_t hypsec_lock;
+#endif
 };
 
 #define kvm_err(fmt, ...) \

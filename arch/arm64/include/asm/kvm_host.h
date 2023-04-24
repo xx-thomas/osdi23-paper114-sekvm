@@ -35,6 +35,9 @@
 #include <kvm/arm_vgic.h>
 #include <kvm/arm_arch_timer.h>
 #include <kvm/arm_pmu.h>
+#ifdef CONFIG_VERIFIED_KVM
+#include <asm/hypsec_mmu.h>
+#endif
 
 #define KVM_MAX_VCPUS VGIC_V3_MAX_CPUS
 
@@ -241,7 +244,41 @@ struct vcpu_reset_state {
 	bool		reset;
 };
 
+#ifdef CONFIG_VERIFIED_KVM
+#define	DIRTY_PC_FLAG			1UL << 32
+#define	PENDING_DABT_INJECT		1UL << 33
+#define	PENDING_IABT_INJECT		1UL << 34
+#define	PENDING_UNDEF_INJECT		1UL << 35
+#define PENDING_FSC_FAULT		1UL << 1
+#define PENDING_EXCEPT_INJECT_FLAG	(PENDING_DABT_INJECT | \
+					 PENDING_IABT_INJECT | \
+					 PENDING_UNDEF_INJECT)
+#define KVM_REGS_SIZE	7 + sizeof(struct user_pt_regs) / sizeof(u64) 
+
+struct shadow_vcpu_context {
+	u64 regs[KVM_REGS_SIZE];
+	u64 far_el2;
+	u64 hpfar;
+	u64 hcr_el2;
+	u64 ec;
+	u64 dirty;	
+	u64 flags;
+	union {
+		u64 sys_regs[NR_SYS_REGS];
+		u32 copro[NR_COPRO_REGS];
+	};
+	struct user_fpsimd_state fp_regs;
+	u32 esr;
+	u32 vmid;
+};
+#endif
+
 struct kvm_vcpu_arch {
+#ifdef CONFIG_VERIFIED_KVM
+	u32 vmid;
+	bool was_preempted;
+	struct s2_trans walk_result;
+#endif
 	struct kvm_cpu_context ctxt;
 	void *sve_state;
 	unsigned int sve_max_vl;
@@ -438,6 +475,9 @@ void kvm_arm_halt_guest(struct kvm *kvm);
 void kvm_arm_resume_guest(struct kvm *kvm);
 
 u64 __kvm_call_hyp(void *hypfn, ...);
+#ifdef CONFIG_VERIFIED_KVM
+#define kvm_call_core(n, ...) __kvm_call_hyp((void *)n, ##__VA_ARGS__)
+#endif
 
 /*
  * The couple of isb() below are there to guarantee the same behaviour
@@ -503,8 +543,12 @@ static inline void __cpu_init_hyp_mode(phys_addr_t pgd_ptr,
 	 * kernel's mapping to the linear mapping, and store it in tpidr_el2
 	 * so that we can use adr_l to access per-cpu variables in EL2.
 	 */
+#ifndef CONFIG_VERIFIED_KVM
 	u64 tpidr_el2 = ((u64)this_cpu_ptr(&kvm_host_data) -
 			 (u64)kvm_ksym_ref(kvm_host_data));
+#else
+	u64 tpidr_el2 = 0;
+#endif
 
 	/*
 	 * Call initialization code, and switch to the full blown HYP code.
@@ -515,14 +559,20 @@ static inline void __cpu_init_hyp_mode(phys_addr_t pgd_ptr,
 	BUG_ON(!static_branch_likely(&arm64_const_caps_ready));
 	__kvm_call_hyp((void *)pgd_ptr, hyp_stack_ptr, vector_ptr, tpidr_el2);
 
+#ifndef CONFIG_VERIFIED_KVM
 	/*
 	 * Disabling SSBD on a non-VHE system requires us to enable SSBS
 	 * at EL2.
 	 */
+	printk("%s: %d\n", __func__, __LINE__);
 	if (!has_vhe() && this_cpu_has_cap(ARM64_SSBS) &&
+	printk("%s: %d\n", __func__, __LINE__);
 	    arm64_get_ssbd_state() == ARM64_SSBD_FORCE_DISABLE) {
 		kvm_call_hyp(__kvm_enable_ssbs);
+	printk("%s: %d\n", __func__, __LINE__);
 	}
+	printk("%s: %d\n", __func__, __LINE__);
+#endif
 }
 
 static inline bool kvm_arch_requires_vhe(void)

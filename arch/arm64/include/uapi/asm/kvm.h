@@ -107,6 +107,14 @@ struct kvm_regs {
 #define KVM_ARM_VCPU_PTRAUTH_ADDRESS	5 /* VCPU uses address authentication */
 #define KVM_ARM_VCPU_PTRAUTH_GENERIC	6 /* VCPU uses generic authentication */
 
+#ifdef CONFIG_VERIFIED_KVM                                                               
+struct kvm_boot_info {
+        __u32 datasize;
+        __u8 *data;
+        __u64 addr;                                                                      
+};
+#endif
+
 struct kvm_vcpu_init {
 	__u32 target;
 	__u32 features[7];

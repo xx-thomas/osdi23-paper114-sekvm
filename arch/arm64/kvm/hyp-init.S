@@ -112,8 +112,12 @@ CPU_BE(	orr	x4, x4, #SCTLR_ELx_EE)
 	mov	sp, x1
 	msr	vbar_el2, x2
 
+#ifndef CONFIG_VERIFIED_KVM
 	/* Set tpidr_el2 for use by HYP */
 	msr	tpidr_el2, x3
+#else
+	msr	hstr_el2, xzr
+#endif
 
 	/* Hello, World! */
 	eret

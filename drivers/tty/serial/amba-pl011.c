@@ -413,6 +413,7 @@ static void pl011_dma_probe(struct uart_amba_port *uap)
 	};
 	struct dma_chan *chan;
 	dma_cap_mask_t mask;
+	printk("%s\n", __func__);
 
 	uap->dma_probed = true;
 	chan = dma_request_slave_channel_reason(dev, "tx");
@@ -2684,18 +2685,23 @@ static int pl011_probe(struct amba_device *dev, const struct amba_id *id)
 	struct vendor_data *vendor = id->data;
 	int portnr, ret;
 
+	printk("!%s: %d\n", __func__, __LINE__);
+
 	portnr = pl011_find_free_port();
 	if (portnr < 0)
 		return portnr;
+	printk("!%s: %d\n", __func__, __LINE__);
 
 	uap = devm_kzalloc(&dev->dev, sizeof(struct uart_amba_port),
 			   GFP_KERNEL);
 	if (!uap)
 		return -ENOMEM;
+	printk("!%s: %d\n", __func__, __LINE__);
 
 	uap->clk = devm_clk_get(&dev->dev, NULL);
 	if (IS_ERR(uap->clk))
 		return PTR_ERR(uap->clk);
+	printk("!%s: %d\n", __func__, __LINE__);
 
 	if (of_property_read_bool(dev->dev.of_node, "cts-event-workaround")) {
 	    vendor->cts_event_workaround = true;
@@ -2708,14 +2714,18 @@ static int pl011_probe(struct amba_device *dev, const struct amba_id *id)
 	uap->port.iotype = vendor->access_32b ? UPIO_MEM32 : UPIO_MEM;
 	uap->port.irq = dev->irq[0];
 	uap->port.ops = &amba_pl011_pops;
+	printk("!%s: %d\n", __func__, __LINE__);
 
 	snprintf(uap->type, sizeof(uap->type), "PL011 rev%u", amba_rev(dev));
 
+	printk("%s: %d\n", __func__, __LINE__);
 	ret = pl011_setup_port(&dev->dev, uap, &dev->res, portnr);
 	if (ret)
 		return ret;
+	printk("%s: %d\n", __func__, __LINE__);
 
 	amba_set_drvdata(dev, uap);
+	printk("%s: %d\n", __func__, __LINE__);
 
 	return pl011_register_port(uap);
 }

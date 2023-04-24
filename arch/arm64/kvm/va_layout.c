@@ -22,6 +22,32 @@ static u8 tag_lsb;
 static u64 tag_val;
 static u64 va_mask;
 
+#if 1
+// from 5.9-rc6
+static void compute_layout(void)
+{
+	phys_addr_t idmap_addr = __pa_symbol(__hyp_idmap_text_start);
+	u64 hyp_va_msb;
+
+	/* Where is my RAM region? */
+	hyp_va_msb  = idmap_addr & BIT(vabits_actual - 1);
+	hyp_va_msb ^= BIT(vabits_actual - 1);
+
+	tag_lsb = fls64((u64)phys_to_virt(memblock_start_of_DRAM()) ^
+			(u64)(high_memory - 1));
+
+	va_mask = GENMASK_ULL(tag_lsb - 1, 0);
+	tag_val = hyp_va_msb;
+
+#if 0
+	if (IS_ENABLED(CONFIG_RANDOMIZE_BASE) && tag_lsb != (vabits_actual - 1)) {
+		/* We have some free bits to insert a random tag. */
+		tag_val |= get_random_long() & GENMASK_ULL(vabits_actual - 2, tag_lsb);
+	}
+#endif
+	tag_val >>= tag_lsb;
+}
+#else
 static void compute_layout(void)
 {
 	phys_addr_t idmap_addr = __pa_symbol(__hyp_idmap_text_start);
@@ -35,7 +61,7 @@ static void compute_layout(void)
 	kva_msb = fls64((u64)phys_to_virt(memblock_start_of_DRAM()) ^
 			(u64)(high_memory - 1));
 
-	if (kva_msb == (vabits_actual - 1)) {
+	if (true || kva_msb == (vabits_actual - 1)) {
 		/*
 		 * No space in the address, let's compute the mask so
 		 * that it covers (vabits_actual - 1) bits, and the region
@@ -60,6 +86,7 @@ static void compute_layout(void)
 		tag_val >>= tag_lsb;
 	}
 }
+#endif
 
 static u32 compute_instruction(int n, u32 rd, u32 rn)
 {

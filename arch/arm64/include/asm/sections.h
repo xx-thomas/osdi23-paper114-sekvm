@@ -19,4 +19,13 @@ extern char __irqentry_text_start[], __irqentry_text_end[];
 extern char __mmuoff_data_start[], __mmuoff_data_end[];
 extern char __entry_tramp_text_start[], __entry_tramp_text_end[];
 
+#ifdef CONFIG_VERIFIED_KVM
+extern char stage2_pgs_start[];
+extern char stage2_pgs_end[];
+extern char el2_data_start[];
+extern char el2_data_end[];
+extern char shared_data_start[];
+extern char shared_data_end[];
+#endif
+
 #endif /* __ASM_SECTIONS_H */

@@ -638,6 +638,19 @@ static void __init map_kernel(pgd_t *pgdp)
 			   &vmlinux_initdata, 0, VM_NO_GUARD);
 	map_kernel_segment(pgdp, _data, _end, PAGE_KERNEL, &vmlinux_data, 0, 0);
 
+	printk("SHIT text %lx end %lx\n", (unsigned long)__pa_symbol(_text), (unsigned long)__pa_symbol(_etext));
+	printk("SHIT rodata %lx end %lx\n", (unsigned long)__pa_symbol(__start_rodata), (unsigned long)__pa_symbol(__inittext_begin));
+	printk("SHIT inittext %lx end %lx\n", (unsigned long)__pa_symbol(__inittext_begin), (unsigned long)__pa_symbol(__inittext_end));
+	printk("SHIT initdata %lx end %lx\n", (unsigned long)__pa_symbol(__initdata_begin), (unsigned long)__pa_symbol(__initdata_end));
+	printk("SHIT data %lx end %lx\n", (unsigned long)__pa_symbol(_data), (unsigned long)__pa_symbol(_end));
+	printk("PA data %llx end %llx\n", virt_to_phys(_data), virt_to_phys(_end));
+	printk("init_pg_end = %llx\n", virt_to_phys(init_pg_end));
+	printk("SHIT VA stage2 data %lx end %lx\n", (unsigned long)el2_data_start, (unsigned long)el2_data_end);
+	printk("SHIT VA data %lx end %lx\n", (unsigned long)_data, (unsigned long)_end);
+
+	u64 size = __pa_symbol(_end) - __pa_symbol(stage2_pgs_start);
+	printk("SHIT Reserved memblock from PA %llx to %llx\n", __pa_symbol(stage2_pgs_start), __pa_symbol(stage2_pgs_start) + size);
+
 	if (!READ_ONCE(pgd_val(*pgd_offset_raw(pgdp, FIXADDR_START)))) {
 		/*
 		 * The fixmap falls in a separate pgd to the kernel, and doesn't

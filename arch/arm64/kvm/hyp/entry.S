@@ -45,7 +45,7 @@
  *		     struct kvm_cpu_context *host_ctxt);
  */
 ENTRY(__guest_enter)
-	// x0: vcpu
+	// x0: vcpu, NO, it points to shadow vcpu context now
 	// x1: host context
 	// x2-x17: clobbered by macros
 	// x18: guest context
@@ -57,24 +57,32 @@ ENTRY(__guest_enter)
 	// affect the host. If any asynchronous exception is pending we defer
 	// the guest entry. The DSB isn't necessary before v8.2 as any SError
 	// would be fatal.
-alternative_if ARM64_HAS_RAS_EXTN
-	dsb	nshst
-	isb
-alternative_else_nop_endif
-	mrs	x1, isr_el1
-	cbz	x1,  1f
-	mov	x0, #ARM_EXCEPTION_IRQ
-	ret
+#alternative_if ARM64_HAS_RAS_EXTN
+#	dsb	nshst
+#	isb
+#alternative_else_nop_endif
+	#mrs	x1, isr_el1
+	#cbz	x1,  1f
+	#mov	x0, #ARM_EXCEPTION_IRQ
+	#ret
 
 1:
+#ifndef CONFIG_VERIFIED_KVM
 	add	x18, x0, #VCPU_CONTEXT
+#else
+	// Store the host_ctxt for use at exit time
+	str     x1, [sp, #-16]!
+	mov	x18, x0
+#endif
 
 	// Macro ptrauth_switch_to_guest format:
 	// 	ptrauth_switch_to_guest(guest cxt, tmp1, tmp2, tmp3)
 	// The below macro to restore guest keys is not implemented in C code
 	// as it may cause Pointer Authentication key signing mismatch errors
 	// when this feature is enabled for kernel code.
+#ifndef CONFIG_VERIFIED_KVM
 	ptrauth_switch_to_guest x18, x0, x1, x2
+#endif
 
 	// Restore guest regs x0-x17
 	ldp	x0, x1,   [x18, #CPU_XREG_OFFSET(0)]
@@ -100,11 +108,13 @@ ENDPROC(__guest_enter)
 
 ENTRY(__guest_exit)
 	// x0: return code
-	// x1: vcpu
+	// x1: shadow_vcpu_context 
 	// x2-x29,lr: vcpu regs
 	// vcpu x0-x1 on the stack
 
+#ifndef CONFIG_VERIFIED_KVM
 	add	x1, x1, #VCPU_CONTEXT
+#endif
 
 	ALTERNATIVE(nop, SET_PSTATE_PAN(1), ARM64_HAS_PAN, CONFIG_ARM64_PAN)
 
@@ -128,37 +138,43 @@ ENTRY(__guest_exit)
 	// Store the guest regs x19-x29, lr
 	save_callee_saved_regs x1
 
+#ifndef CONFIG_VERIFIED_KVM
 	get_host_ctxt	x2, x3
+#else
+	// Restore the host_ctxt from the stack
+	ldr     x2, [sp], #16
+#endif
 
 	// Macro ptrauth_switch_to_guest format:
 	// 	ptrauth_switch_to_host(guest cxt, host cxt, tmp1, tmp2, tmp3)
 	// The below macro to save/restore keys is not implemented in C code
 	// as it may cause Pointer Authentication key signing mismatch errors
 	// when this feature is enabled for kernel code.
+#ifndef CONFIG_VERIFIED_KVM
 	ptrauth_switch_to_host x1, x2, x3, x4, x5
+#endif
 
 	// Now restore the host regs
 	restore_callee_saved_regs x2
 
-alternative_if ARM64_HAS_RAS_EXTN
+#alternative_if ARM64_HAS_RAS_EXTN
 	// If we have the RAS extensions we can consume a pending error
 	// without an unmask-SError and isb. The ESB-instruction consumed any
 	// pending guest error when we took the exception from the guest.
-	mrs_s	x2, SYS_DISR_EL1
-	str	x2, [x1, #(VCPU_FAULT_DISR - VCPU_CONTEXT)]
-	cbz	x2, 1f
-	msr_s	SYS_DISR_EL1, xzr
-	orr	x0, x0, #(1<<ARM_EXIT_WITH_SERROR_BIT)
-1:	ret
-alternative_else
-	dsb	sy		// Synchronize against in-flight ld/st
-	isb			// Prevent an early read of side-effect free ISR
-	mrs	x2, isr_el1
-	tbnz	x2, #8, 2f	// ISR_EL1.A
-	ret
-	nop
-2:
-alternative_endif
+#	mrs_s	x2, SYS_DISR_EL1
+#	str	x2, [x1, #(VCPU_FAULT_DISR - VCPU_CONTEXT)]
+#	cbz	x2, 1f
+#	msr_s	SYS_DISR_EL1, xzr
+#	orr	x0, x0, #(1<<ARM_EXIT_WITH_SERROR_BIT)
+#1:	ret
+#alternative_else
+#	dsb	sy		// Synchronize against in-flight ld/st
+#	isb			// Prevent an early read of side-effect free ISR
+	#mrs	x2, isr_el1
+	#tbnz	x2, #8, 2f	// ISR_EL1.A
+	#ret
+#2:
+#alternative_endif
 	// We know we have a pending asynchronous abort, now is the
 	// time to flush it out. From your VAXorcist book, page 666:
 	// "Threaten me not, oh Evil one!  For I speak with

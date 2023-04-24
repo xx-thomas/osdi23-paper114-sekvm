@@ -1650,7 +1650,7 @@ static void vfio_iommu_iova_insert_copy(struct vfio_iommu *iommu,
 	list_splice_tail(iova_copy, iova);
 }
 static int vfio_iommu_type1_attach_group(void *iommu_data,
-					 struct iommu_group *iommu_group)
+					 struct iommu_group *iommu_group, int vmid)
 {
 	struct vfio_iommu *iommu = iommu_data;
 	struct vfio_group *group;
@@ -1734,6 +1734,9 @@ static int vfio_iommu_type1_attach_group(void *iommu_data,
 			goto out_domain;
 	}
 
+#ifdef CONFIG_VERIFIED_KVM
+	domain->domain->vmid = vmid;
+#endif
 	ret = vfio_iommu_attach_group(domain, group);
 	if (ret)
 		goto out_domain;

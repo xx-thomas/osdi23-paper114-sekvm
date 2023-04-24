@@ -739,6 +739,12 @@ config FUJITSU_ERRATUM_010001
 
 endmenu
 
+config VERIFIED_KVM
+	bool "Build verified Linux"
+	select ARM64_4K_PAGES
+	select VIRTUALIZATION
+	help
+	  Build verified Linux.
 
 choice
 	prompt "Page size"
