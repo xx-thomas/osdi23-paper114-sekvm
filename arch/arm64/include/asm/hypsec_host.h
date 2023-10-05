@@ -140,6 +140,9 @@ struct el2_data {
 
 	u64 phys_mem_start;
 	u64 phys_mem_size;
+	
+	// save shared region somewhere
+	//unsigned long shmem_region_start;
 };
 
 void init_el2_data_page(void);

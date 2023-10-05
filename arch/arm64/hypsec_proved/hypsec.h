@@ -944,4 +944,6 @@ void set_smmu_pte(u64 pmd, u64 addr, u64 pte);
 void clear_smmu_pt(u32 cbndx, u32 index);
 u64 v_walk_smmu_pt(u32 cbndx, u32 index, u64 addr);
 void v_set_smmu_pt(u32 cbndx, u32 index, u64 addr, u64 pte);
+
+int register_shared_memory(unsigned long shmem_base_addr, unsigned long shmem_size);
 #endif //HYPSEC_HYPSEC_H
