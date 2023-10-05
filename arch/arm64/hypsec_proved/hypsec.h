@@ -945,5 +945,10 @@ void clear_smmu_pt(u32 cbndx, u32 index);
 u64 v_walk_smmu_pt(u32 cbndx, u32 index, u64 addr);
 void v_set_smmu_pt(u32 cbndx, u32 index, u64 addr, u64 pte);
 
-int register_shared_memory(unsigned long shmem_base_addr, unsigned long shmem_size);
+void register_shared_memory(unsigned long shmem_base_addr, unsigned long shmem_size);
+u64 get_shared_memory_size(void);
+void register_guest_shared_memory(unsigned long guest_physical_addr_shmem_region);
+void unregister_guest_shared_memory(unsigned long guest_physical_addr_shmem_region);
+
+
 #endif //HYPSEC_HYPSEC_H

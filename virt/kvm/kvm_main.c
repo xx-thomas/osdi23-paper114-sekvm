@@ -4429,8 +4429,9 @@ int kvm_init(void *opaque, unsigned vcpu_size, unsigned vcpu_align,
 	r = kvm_arch_hardware_setup();
 	unsigned long shared_memory_base_addr = __get_free_page(GFP_KERNEL);
 	unsigned long shared_memory_region_size = PAGE_SIZE;
-	u64 ret_val = kvm_pvops(29, shared_memory_base_addr, shared_memory_region_size);
-	printk(KERN_CRIT "HypSec EL2 runtime is installed\n");
+	kvm_pvops(29, shared_memory_base_addr, shared_memory_region_size);
+	u64 el2_shmem_region_size = kvm_pvops(30);
+	pr_info("The guest shared memory region size allocated: %llu, hypercall returned: %llu \n", shared_memory_region_size, el2_shmem_region_size);
 	
 	if (r < 0)
 		goto out_free_0a;

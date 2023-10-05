@@ -99,6 +99,19 @@ void __hyp_text handle_host_hvc(struct s2_host_regs *hr)
 		print_string("\rHVC_HOST_SHMEM_REGISTER\n");
 		register_shared_memory((u64) get_host_reg(hr, 1), (u64) get_host_reg(hr, 2));
 		break;
+	case HVC_GET_SHMEM_SIZE:
+		print_string("\rHVC_GET_SHMEM_SIZE\n");
+		ret = get_shared_memory_size();
+		set_host_regs(0, ret);
+		break;
+	case HVC_GUEST_SHMEM_REGISTER:
+		print_string("\rHVC_GUEST_SHMEM_REGISTER\n");
+		register_guest_shared_memory((u64) get_host_reg(hr, 1));
+		break;
+	case HVC_GUEST_SHMEM_UNREGISTER:
+		print_string("\rHVC_GUEST_SHMEM_UNREGISTER\n");
+		unregister_guest_shared_memory((u64) get_host_reg(hr, 1));
+		break;
 	case HVC_ENABLE_S2_TRANS:
 		print_string("\rHVC_ENABLE_S2_TRANS\n");
 		hvc_enable_s2_trans();
@@ -191,7 +204,7 @@ void __hyp_text handle_host_hvc(struct s2_host_regs *hr)
 
 
 #define SHMEM (EL2_MAX_VMID + 2)
-int __hyp_text register_shared_memory(unsigned long shmem_base_addr, unsigned long shmem_size)
+void __hyp_text register_shared_memory(unsigned long shmem_base_addr, unsigned long shmem_size)
 {	
 	unsigned long total_pages = shmem_size/PAGE_SIZE;
 	unsigned long pages_written = 0;
@@ -204,12 +217,30 @@ int __hyp_text register_shared_memory(unsigned long shmem_base_addr, unsigned lo
 		current_shmem_addr += PAGE_SIZE;
 		pages_written += 1;
 	}
-	
-	// save somewhere?
-	//struct el2_data *el2_data = kern_hyp_va(kvm_ksym_ref(el2_data_start));
-	//el2_data->shmem_region_start = shmem_base_addr;
-	
-	return 0;
+	acquire_lock_core();
+	struct el2_data *el2_data = kern_hyp_va(kvm_ksym_ref(el2_data_start));
+	el2_data->shmem_region_start = shmem_base_addr;
+	el2_data->shmem_region_size = shmem_size;
+	release_lock_core();
+}
+
+u64 __hyp_text get_shared_memory_size()
+{
+	acquire_lock_core();
+	struct el2_data *el2_data = kern_hyp_va(kvm_ksym_ref(el2_data_start));
+	u64 ret_val = el2_data->shmem_region_size;
+	release_lock_core();
+	return ret_val;
+}
+
+void __hyp_text register_guest_shared_memory(unsigned long guest_physical_addr_shmem_region)
+{
+
+}
+
+void __hyp_text unregister_guest_shared_memory(unsigned long guest_physical_addr_shmem_region)
+{
+
 }
 //added by shih-wei
 struct el2_vm_info* __hyp_text vmid_to_vm_info(u32 vmid)

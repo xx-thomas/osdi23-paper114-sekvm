@@ -64,6 +64,9 @@
 #define HVC_SMMU_CLEAR 27
 #define	HVC_PHYS_ADDR_IOREMAP 28
 #define HVC_HOST_SHMEM_REGISTER 29
+#define HVC_GET_SHMEM_SIZE 30
+#define HVC_GUEST_SHMEM_REGISTER 31
+#define HVC_GUEST_SHMEM_UNREGISTER 32
 #endif
 
 /* Error returned when an invalid stub number is passed into x0 */
