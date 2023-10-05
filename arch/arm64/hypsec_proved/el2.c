@@ -233,6 +233,8 @@ u64 __hyp_text get_shared_memory_size()
 	return ret_val;
 }
 
+
+extern void kvm_tlb_flush_vmid_ipa_host(phys_addr_t ipa);
 void __hyp_text register_guest_shared_memory(unsigned long guest_physical_addr_shmem_region)
 {
 	u32 vmid = get_cur_vmid();
@@ -249,7 +251,10 @@ void __hyp_text register_guest_shared_memory(unsigned long guest_physical_addr_s
 	unsigned long current_guest_phy_addr = guest_physical_addr_shmem_region;
 
 	while (pages_written < total_pages){
-		map_pfn_vm(vmid, current_shmem_addr, current_guest_phy_addr, 3U); // level=3U because 4kB page alignment
+		u64 guest_pte = walk_s2pt(vmid, current_guest_phy_addr);
+		// assign_pfn_to_vm(vmid, 0, pfn);
+		// Also level should be 2U? looking at this function unmap_and_load_vm_image
+		map_pfn_vm(vmid, current_shmem_addr, guest_pte, 3U); // level=3U because 4kB page alignment
 		kvm_tlb_flush_vmid_ipa_host(current_guest_phy_addr);
 		current_shmem_addr += PAGE_SIZE;
 		current_guest_phy_addr += PAGE_SIZE;
