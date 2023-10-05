@@ -265,6 +265,16 @@ void __hyp_text register_guest_shared_memory(unsigned long guest_physical_addr_s
 
 void __hyp_text unregister_guest_shared_memory(unsigned long guest_physical_addr_shmem_region)
 {
+	u32 vmid = get_cur_vmid();
+	unsigned long current_guest_phy_addr_pfn = guest_physical_addr_shmem_region >> PAGE_SIZE;
+	unsigned long pages_unregistered = 0;
+	unsigned long total_pages = shmem_size/PAGE_SIZE;
+
+	while (pages_unregistered < total_pages){
+		clear_vm_page(vmid, current_guest_phy_addr_pfn);
+		current_guest_phy_addr_pfn += 1UL;
+		pages_unregistered += 1;
+	}
 
 }
 //added by shih-wei
