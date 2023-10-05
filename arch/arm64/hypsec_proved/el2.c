@@ -235,6 +235,26 @@ u64 __hyp_text get_shared_memory_size()
 
 void __hyp_text register_guest_shared_memory(unsigned long guest_physical_addr_shmem_region)
 {
+	u32 vmid = get_cur_vmid();
+
+	acquire_lock_core();
+	struct el2_data *el2_data = kern_hyp_va(kvm_ksym_ref(el2_data_start));
+	unsigned long shmem_size = el2_data->shmem_region_size;
+	unsigned long shmem_base_addr = el2_data->shmem_region_start;
+	release_lock_core();
+
+	unsigned long total_pages = shmem_size/PAGE_SIZE;
+	unsigned long pages_written = 0;
+	unsigned long current_shmem_addr = shmem_base_addr;
+	unsigned long current_guest_phy_addr = guest_physical_addr_shmem_region;
+
+	while (pages_written < total_pages){
+		map_pfn_vm(vmid, current_shmem_addr, current_guest_phy_addr, 3U); // level=3U because 4kB page alignment
+		kvm_tlb_flush_vmid_ipa_host(current_guest_phy_addr);
+		current_shmem_addr += PAGE_SIZE;
+		current_guest_phy_addr += PAGE_SIZE;
+		pages_written += 1;
+	}
 
 }
 
