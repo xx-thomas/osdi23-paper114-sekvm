@@ -243,6 +243,8 @@ void __hyp_text register_guest_shared_memory(unsigned long guest_physical_addr_s
 	struct el2_data *el2_data = kern_hyp_va(kvm_ksym_ref(el2_data_start));
 	unsigned long shmem_size = el2_data->shmem_region_size;
 	unsigned long shmem_base_addr = el2_data->shmem_region_start;
+	struct el2_vm_info *vm_info = vmid_to_vm_info(vmid);
+	struct kvm *kvm_to_pass = vm_info->kvm;
 	release_lock_core();
 
 	unsigned long total_pages = shmem_size/PAGE_SIZE;
@@ -252,15 +254,15 @@ void __hyp_text register_guest_shared_memory(unsigned long guest_physical_addr_s
 
 	while (pages_written < total_pages){
 		u64 guest_pte = walk_s2pt(vmid, current_guest_phy_addr);
-		// assign_pfn_to_vm(vmid, 0, pfn);
-		// Also level should be 2U? looking at this function unmap_and_load_vm_image
-		map_pfn_vm(vmid, current_shmem_addr, guest_pte, 3U); // level=3U because 4kB page alignment
-		kvm_tlb_flush_vmid_ipa_host(current_guest_phy_addr);
+		u64 guest_pfn = current_guest_phy_addr/PAGE_SIZE;
+		assign_pfn_to_vm(vmid, 0, guest_pfn);
+		map_pfn_vm(vmid, current_shmem_addr, guest_pte, 2U);
+		// kvm_tlb_flush_vmid_ipa_host(current_guest_phy_addr);
 		current_shmem_addr += PAGE_SIZE;
 		current_guest_phy_addr += PAGE_SIZE;
 		pages_written += 1;
 	}
-
+	__kvm_tlb_flush_vmid(kvm_to_pass);
 }
 
 void __hyp_text unregister_guest_shared_memory(unsigned long guest_physical_addr_shmem_region)
