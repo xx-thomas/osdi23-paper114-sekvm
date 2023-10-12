@@ -268,6 +268,13 @@ void __hyp_text register_guest_shared_memory(unsigned long guest_physical_addr_s
 void __hyp_text unregister_guest_shared_memory(unsigned long guest_physical_addr_shmem_region)
 {
 	u32 vmid = get_cur_vmid();
+	
+	acquire_lock_core();
+	struct el2_data *el2_data = kern_hyp_va(kvm_ksym_ref(el2_data_start));
+	unsigned long shmem_size = el2_data->shmem_region_size;
+	release_lock_core();
+	
+	
 	unsigned long current_guest_phy_addr_pfn = guest_physical_addr_shmem_region >> PAGE_SIZE;
 	unsigned long pages_unregistered = 0;
 	unsigned long total_pages = shmem_size/PAGE_SIZE;
