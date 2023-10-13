@@ -95,6 +95,10 @@ void __hyp_text handle_host_hvc(struct s2_host_regs *hr)
 	set_per_cpu_host_regs((u64)hr);
 	/* FIXME: we write return val to reg[31] as this will be restored to x0 */
 	switch (callno) {
+	case HVC_HOST_SHMEM_REGISTER:
+		print_string("\rHVC_HOST_SHMEM_REGISTER\n");
+		register_shared_memory((u64) get_host_reg(hr, 1), (u64) get_host_reg(hr, 2));
+		break;
 	case HVC_ENABLE_S2_TRANS:
 		print_string("\rHVC_ENABLE_S2_TRANS\n");
 		hvc_enable_s2_trans();
@@ -183,6 +187,28 @@ void __hyp_text handle_host_hvc(struct s2_host_regs *hr)
 		break;
 		//__hyp_panic();
 	};
+}
+
+
+#define SHMEM (EL2_MAX_VMID + 2)
+void __hyp_text register_shared_memory(unsigned long shmem_base_addr, unsigned long shmem_size)
+{	
+	unsigned long total_pages = shmem_size/PAGE_SIZE;
+	unsigned long pages_written = 0;
+	unsigned long current_shmem_addr = shmem_base_addr;
+	
+	
+	while (pages_written < total_pages){
+		u64 current_pfn = current_shmem_addr/PAGE_SIZE;
+		assign_pfn_to_vm(SHMEM, 0, current_pfn);
+		current_shmem_addr += PAGE_SIZE;
+		pages_written += 1;
+	}
+	acquire_lock_core();
+	struct el2_data *el2_data = kern_hyp_va(kvm_ksym_ref(el2_data_start));
+	el2_data->shmem_region_start = shmem_base_addr;
+	el2_data->shmem_region_size = shmem_size;
+	release_lock_core();
 }
 
 //added by shih-wei

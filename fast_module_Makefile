@@ -1,0 +1,11 @@
+obj-m := new_fast_module.o
+new_fast_module-y := fast_module.o hyp.o
+
+all:
+	make -C ${LINUX_TREE} M=$(PWD) modules
+clean:
+	make -C ${LINUX_TREE} M=$(PWD) clean
+install:
+	insmod fast_module.ko
+uninstall:
+	rmmod fast_module

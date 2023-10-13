@@ -64,6 +64,8 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/kvm.h>
 
+#include <kvm/pvops.h>
+
 /* Worst case buffer size needed for holding an integer. */
 #define ITOA_MAX_LEN 12
 
@@ -4425,6 +4427,10 @@ int kvm_init(void *opaque, unsigned vcpu_size, unsigned vcpu_align,
 	}
 
 	r = kvm_arch_hardware_setup();
+	unsigned long shared_memory_base_addr = __get_free_pages(GFP_KERNEL, 9);
+	unsigned long shared_memory_region_size = 512 * PAGE_SIZE;
+	kvm_pvops(29, shared_memory_base_addr, shared_memory_region_size);
+	
 	if (r < 0)
 		goto out_free_0a;
 
