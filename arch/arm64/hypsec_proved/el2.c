@@ -99,19 +99,6 @@ void __hyp_text handle_host_hvc(struct s2_host_regs *hr)
 		print_string("\rHVC_HOST_SHMEM_REGISTER\n");
 		register_shared_memory((u64) get_host_reg(hr, 1), (u64) get_host_reg(hr, 2));
 		break;
-	case HVC_GET_SHMEM_SIZE:
-		print_string("\rHVC_GET_SHMEM_SIZE\n");
-		ret = get_shared_memory_size();
-		set_host_regs(0, ret);
-		break;
-	case HVC_GUEST_SHMEM_REGISTER:
-		print_string("\rHVC_GUEST_SHMEM_REGISTER\n");
-		register_guest_shared_memory((u64) get_host_reg(hr, 1));
-		break;
-	case HVC_GUEST_SHMEM_UNREGISTER:
-		print_string("\rHVC_GUEST_SHMEM_UNREGISTER\n");
-		unregister_guest_shared_memory((u64) get_host_reg(hr, 1));
-		break;
 	case HVC_ENABLE_S2_TRANS:
 		print_string("\rHVC_ENABLE_S2_TRANS\n");
 		hvc_enable_s2_trans();
@@ -224,68 +211,6 @@ void __hyp_text register_shared_memory(unsigned long shmem_base_addr, unsigned l
 	release_lock_core();
 }
 
-u64 __hyp_text get_shared_memory_size()
-{
-	acquire_lock_core();
-	struct el2_data *el2_data = kern_hyp_va(kvm_ksym_ref(el2_data_start));
-	u64 ret_val = el2_data->shmem_region_size;
-	release_lock_core();
-	return ret_val;
-}
-
-
-extern void kvm_tlb_flush_vmid_ipa_host(phys_addr_t ipa);
-void __hyp_text register_guest_shared_memory(unsigned long guest_physical_addr_shmem_region)
-{
-	u32 vmid = get_cur_vmid();
-
-	acquire_lock_core();
-	struct el2_data *el2_data = kern_hyp_va(kvm_ksym_ref(el2_data_start));
-	unsigned long shmem_size = el2_data->shmem_region_size;
-	unsigned long shmem_base_addr = el2_data->shmem_region_start;
-	struct el2_vm_info *vm_info = vmid_to_vm_info(vmid);
-	struct kvm *kvm_to_pass = vm_info->kvm;
-	release_lock_core();
-
-	unsigned long total_pages = shmem_size/PAGE_SIZE;
-	unsigned long pages_written = 0;
-	unsigned long current_shmem_addr = shmem_base_addr;
-	unsigned long current_guest_phy_addr = guest_physical_addr_shmem_region;
-
-	while (pages_written < total_pages){
-		u64 guest_pte = walk_s2pt(vmid, current_guest_phy_addr);
-		u64 guest_pfn = current_guest_phy_addr/PAGE_SIZE;
-		assign_pfn_to_vm(vmid, 0, guest_pfn);
-		map_pfn_vm(vmid, current_shmem_addr, guest_pte, 2U);
-		// kvm_tlb_flush_vmid_ipa_host(current_guest_phy_addr);
-		current_shmem_addr += PAGE_SIZE;
-		current_guest_phy_addr += PAGE_SIZE;
-		pages_written += 1;
-	}
-	__kvm_tlb_flush_vmid(kvm_to_pass);
-}
-
-void __hyp_text unregister_guest_shared_memory(unsigned long guest_physical_addr_shmem_region)
-{
-	u32 vmid = get_cur_vmid();
-	
-	acquire_lock_core();
-	struct el2_data *el2_data = kern_hyp_va(kvm_ksym_ref(el2_data_start));
-	unsigned long shmem_size = el2_data->shmem_region_size;
-	release_lock_core();
-	
-	
-	unsigned long current_guest_phy_addr_pfn = guest_physical_addr_shmem_region >> PAGE_SIZE;
-	unsigned long pages_unregistered = 0;
-	unsigned long total_pages = shmem_size/PAGE_SIZE;
-
-	while (pages_unregistered < total_pages){
-		clear_vm_page(vmid, current_guest_phy_addr_pfn);
-		current_guest_phy_addr_pfn += 1UL;
-		pages_unregistered += 1;
-	}
-
-}
 //added by shih-wei
 struct el2_vm_info* __hyp_text vmid_to_vm_info(u32 vmid)
 {

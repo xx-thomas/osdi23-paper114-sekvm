@@ -8,6 +8,8 @@
 #include <asm/io.h>
 #include <kvm/pvops.h>
 
+unsigned long physical_addr;
+
 static int sekvm_shmem_open(struct inode *inode, struct file *file)
 {
 	printk(KERN_ERR "sekvm_shmem file opened.\n");
@@ -38,7 +40,8 @@ dev_t dev = 0;
 static struct class *dev_class;
 static struct cdev sekvm_shmem_cdev;
 
-extern unsigned long long get_shmem_size_hypercall(void);
+// extern unsigned long long get_shmem_size_hypercall(void);
+
 
 static int __init lkm_example_init(void)
 {
@@ -72,9 +75,15 @@ static int __init lkm_example_init(void)
 
 	printk(KERN_INFO "sekvm_shmem_test: installed.\n");
 	
-	printk(KERN_INFO "CALLING THE HYPERCALL\n");
-	unsigned long long el2_shmem_region_size = get_shmem_size_hypercall();
-	printk(KERN_INFO "WE CALLED THE HYPERCALL! AND WE GOT %llu BACK! \n", el2_shmem_region_size);
+	printk(KERN_INFO "PART 3: WE ARE MAKING HYPERCALLS\n");
+	
+	
+	u64 el2_shmem_region_size = kvm_pvops(30);
+	physical_addr = __get_free_pages(GFP_KERNEL, 9);
+	kvm_pvops(31, physical_addr);
+	kvm_pvops(32, physical_addr);
+	
+	printk(KERN_INFO "PART 3: WE FINISHED MAKING HYPERCALLS\n");
 	return 0;
 
 r_device:
